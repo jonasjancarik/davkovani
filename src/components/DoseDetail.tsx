@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SOURCE_NAME, type Brand, type Ingredient, type Product } from '../data/medicines';
+import { formatClock, formatRemaining } from '../lib/diary';
 import { formatNumber, intervalText, type Dose } from '../lib/dosage';
 import { CONTENT_MAX_WIDTH, type Theme } from '../theme';
 import { PieceVisual } from './PieceVisual';
@@ -30,13 +31,25 @@ export type Selection = {
 type Props = {
   theme: Theme;
   selection: Selection | null;
+  now: number;
+  /** Nejbližší čas, kdy lze vybranou látku podle deníčku podat. */
+  allowedFrom: number;
+  onLog: (time: number) => void;
   onClose: () => void;
 };
 
-export function DoseDetail({ theme, selection, onClose }: Props) {
+const logTimes = [
+  { minutesAgo: 0, label: 'Teď' },
+  { minutesAgo: 15, label: 'Před 15 min' },
+  { minutesAgo: 30, label: 'Před 30 min' },
+  { minutesAgo: 60, label: 'Před hodinou' },
+];
+
+export function DoseDetail({ theme, selection, now, allowedFrom, onLog, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [copied, setCopied] = useState(false);
+  const [minutesAgo, setMinutesAgo] = useState(0);
   // Na telefonu vyjíždí zespodu, na širší obrazovce se zobrazí uprostřed.
   const centered = width >= 720;
 
@@ -46,7 +59,10 @@ export function DoseDetail({ theme, selection, onClose }: Props) {
     return () => clearTimeout(timer);
   }, [copied]);
 
-  useEffect(() => setCopied(false), [selection]);
+  useEffect(() => {
+    setCopied(false);
+    setMinutesAgo(0);
+  }, [selection]);
 
   return (
     <Modal
@@ -86,6 +102,11 @@ export function DoseDetail({ theme, selection, onClose }: Props) {
                 theme={theme}
                 selection={selection}
                 copied={copied}
+                now={now}
+                allowedFrom={allowedFrom}
+                minutesAgo={minutesAgo}
+                onMinutesAgo={setMinutesAgo}
+                onLog={() => onLog(Date.now() - minutesAgo * 60000)}
                 onCopy={async () => {
                   await Clipboard.setStringAsync(summaryText(selection));
                   setCopied(true);
@@ -113,12 +134,22 @@ function Content({
   theme,
   selection,
   copied,
+  now,
+  allowedFrom,
+  minutesAgo,
+  onMinutesAgo,
+  onLog,
   onCopy,
   onClose,
 }: {
   theme: Theme;
   selection: Selection;
   copied: boolean;
+  now: number;
+  allowedFrom: number;
+  minutesAgo: number;
+  onMinutesAgo: (minutes: number) => void;
+  onLog: () => void;
   onCopy: () => void;
   onClose: () => void;
 }) {
@@ -216,23 +247,74 @@ function Content({
       </View>
 
       {dose.status === 'ok' && (
-        <Pressable
-          onPress={onCopy}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.copy,
-            { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={copied ? 'check' : 'content-copy'}
-            size={18}
-            color={theme.onPrimary}
-          />
-          <Text style={[styles.copyText, { color: theme.onPrimary }]} aria-live="polite">
-            {copied ? 'Zkopírováno' : 'Zkopírovat dávkování'}
-          </Text>
-        </Pressable>
+        <View style={styles.log}>
+          {allowedFrom > now && (
+            <View style={[styles.tooSoon, { backgroundColor: theme.warningSoft }]}>
+              <MaterialCommunityIcons name="clock-alert-outline" size={20} color={theme.warning} />
+              <Text style={[styles.tooSoonText, { color: theme.text }]}>
+                Podle deníčku lze {ingredient.name.toLowerCase()} podat nejdříve{' '}
+                {formatClock(allowedFrom, now, true)} ({formatRemaining(allowedFrom - now)}).
+              </Text>
+            </View>
+          )}
+
+          <Text style={[styles.logLabel, { color: theme.textMuted }]}>Kdy jste dávku podali?</Text>
+          <View style={styles.logTimes} accessibilityRole="radiogroup">
+            {logTimes.map((option) => {
+              const active = option.minutesAgo === minutesAgo;
+              return (
+                <Pressable
+                  key={option.minutesAgo}
+                  onPress={() => onMinutesAgo(option.minutesAgo)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  style={[
+                    styles.logTime,
+                    {
+                      backgroundColor: active ? theme.primarySoft : theme.surface,
+                      borderColor: active ? theme.primary : theme.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.logTimeText, { color: active ? theme.primary : theme.text }]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable
+            onPress={onLog}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+            ]}
+          >
+            <MaterialCommunityIcons name="notebook-plus-outline" size={20} color={theme.onPrimary} />
+            <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>
+              Zapsat dávku do deníčku
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onCopy}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.secondaryButton, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <MaterialCommunityIcons
+              name={copied ? 'check' : 'content-copy'}
+              size={18}
+              color={theme.primary}
+            />
+            <Text style={[styles.secondaryButtonText, { color: theme.primary }]} aria-live="polite">
+              {copied ? 'Zkopírováno' : 'Zkopírovat dávkování'}
+            </Text>
+          </Pressable>
+        </View>
       )}
     </>
   );
@@ -382,16 +464,64 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  copy: {
+  log: {
+    gap: 10,
+  },
+  tooSoon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 16,
+    padding: 12,
+  },
+  tooSoonText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  logLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  logTimes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  logTime: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  logTimeText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     minHeight: 52,
+    marginTop: 4,
     borderRadius: 18,
   },
-  copyText: {
+  primaryButtonText: {
     fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 44,
+  },
+  secondaryButtonText: {
+    fontSize: 15,
     fontWeight: '700',
   },
 });

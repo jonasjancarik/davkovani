@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DiaryCard } from './src/components/DiaryCard';
 import { DoseDetail, type Selection } from './src/components/DoseDetail';
 import { ProductRow } from './src/components/ProductRow';
 import { WeightInput } from './src/components/WeightInput';
@@ -26,7 +27,9 @@ import {
   SOURCE_URL,
   type IngredientId,
 } from './src/data/medicines';
-import { calculateDose, parseWeight } from './src/lib/dosage';
+import { formatClock, nextDoseTime } from './src/lib/diary';
+import { calculateDose, formatNumber, parseWeight } from './src/lib/dosage';
+import { useDiary, useNow } from './src/lib/useDiary';
 import { CONTENT_MAX_WIDTH, useTheme, type Theme } from './src/theme';
 
 type Filter = 'all' | IngredientId;
@@ -49,11 +52,33 @@ function Calculator() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const weightRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const diary = useDiary();
+  const now = useNow();
   const [weightText, setWeightText] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [selection, setSelection] = useState<Selection | null>(null);
 
   const weight = parseWeight(weightText);
+  const allowedFrom = {
+    ibu: nextDoseTime(diary.entries, ingredients.ibu),
+    par: nextDoseTime(diary.entries, ingredients.par),
+  };
+
+  const logDose = (time: number) => {
+    if (!selection || selection.dose.status !== 'ok') return;
+    const { product, brand, ingredient, dose } = selection;
+    diary.add({
+      time,
+      ingredient: ingredient.id,
+      label: `${brand.name} ${product.name}`,
+      amount: `${formatNumber(dose.amount)} ${dose.unit}`,
+      mg: dose.actualMg,
+      weight: selection.weight,
+    });
+    setSelection(null);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(theme.background);
@@ -90,6 +115,7 @@ function Calculator() {
     <View style={[styles.screen, { backgroundColor: theme.background, paddingTop: insets.top }]}>
       <StatusBar style={theme.dark ? 'light' : 'dark'} />
       <ScrollView
+        ref={scrollRef}
         stickyHeaderIndices={[1]}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
@@ -115,6 +141,18 @@ function Calculator() {
         </View>
 
         <View style={styles.column}>
+          {diary.entries.length > 0 && (
+            <View style={styles.diary}>
+              <DiaryCard
+                theme={theme}
+                entries={diary.entries}
+                now={now}
+                onRemove={diary.remove}
+                onClear={diary.clear}
+              />
+            </View>
+          )}
+
           <View style={styles.filters} accessibilityRole="tablist">
             {filters.map(({ id, label }) => {
               const active = filter === id;
@@ -160,6 +198,11 @@ function Calculator() {
                   product={product}
                   ingredient={ingredient}
                   dose={dose}
+                  waitUntil={
+                    allowedFrom[ingredient.id] > now
+                      ? formatClock(allowedFrom[ingredient.id], now, true)
+                      : undefined
+                  }
                   onPress={() => {
                     if (!dose) {
                       weightRef.current?.focus();
@@ -177,7 +220,14 @@ function Calculator() {
         </View>
       </ScrollView>
 
-      <DoseDetail theme={theme} selection={selection} onClose={() => setSelection(null)} />
+      <DoseDetail
+        theme={theme}
+        selection={selection}
+        now={now}
+        allowedFrom={selection ? allowedFrom[selection.ingredient.id] : 0}
+        onLog={logDose}
+        onClose={() => setSelection(null)}
+      />
     </View>
   );
 }
@@ -225,6 +275,9 @@ const styles = StyleSheet.create({
   sticky: {
     paddingTop: 16,
     paddingBottom: 12,
+  },
+  diary: {
+    marginBottom: 16,
   },
   filters: {
     flexDirection: 'row',

@@ -11,6 +11,8 @@ type Props = {
   ingredient: Ingredient;
   /** Chybí, dokud není zadaná hmotnost. */
   dose?: Dose;
+  /** Nejbližší čas dalšího podání, pokud to deníček zatím nedovoluje. */
+  waitUntil?: string;
   onPress: () => void;
 };
 
@@ -20,7 +22,7 @@ export function strengthText(product: Product): string {
     : `${product.mgPerPiece} mg v 1 ks`;
 }
 
-export function ProductRow({ theme, product, ingredient, dose, onPress }: Props) {
+export function ProductRow({ theme, product, ingredient, dose, waitUntil, onPress }: Props) {
   const tint = theme.ingredient[ingredient.id];
 
   return (
@@ -45,6 +47,11 @@ export function ProductRow({ theme, product, ingredient, dose, onPress }: Props)
         <Text style={[styles.meta, { color: theme.textMuted }]}>
           {ingredient.name} · {strengthText(product)}
         </Text>
+        {waitUntil && (
+          <Text style={[styles.meta, styles.wait, { color: theme.warning }]}>
+            Nejdříve {waitUntil}
+          </Text>
+        )}
       </View>
 
       {dose?.status === 'ok' && (
@@ -93,6 +100,9 @@ const styles = StyleSheet.create({
   },
   meta: {
     fontSize: 13,
+  },
+  wait: {
+    fontWeight: '700',
   },
   dose: {
     alignItems: 'flex-end',

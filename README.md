@@ -6,6 +6,13 @@ Kalkulačka dávek léků na horečku a bolest u dětí podle hmotnosti. Vycház
 Aplikace je napsaná v React Native (Expo) a ze stejného kódu běží na Androidu i na webu.
 Původní jednostránková verze zůstává v `legacy/index.html`.
 
+## Deníček dávek
+
+Podanou dávku lze z detailu léku zapsat do deníčku. Aplikace pak u obou účinných látek ukazuje,
+kdy je lze podat znovu. Hlídá odstup od poslední dávky stejné látky (ibuprofen 8 hodin,
+paracetamol 6 hodin), denní maximum za posledních 24 hodin (3× a 4×) a 4 hodiny od dávky druhé
+látky. Záznamy zůstávají jen v zařízení a po 7 dnech se samy odmažou.
+
 ## Spuštění
 
 ```bash
@@ -29,6 +36,7 @@ pro Google Play je potřeba vlastní podpisový klíč (například přes EAS Bu
 
 - `src/data/medicines.ts` – účinné látky, značky a přípravky
 - `src/lib/dosage.ts` – výpočet dávky; testy v `dosage.test.ts` (`npm test`)
+- `src/lib/diary.ts` – deníček dávek a pravidla pro čas další dávky; ukládání v `useDiary.ts`
 - `src/components/` – pole pro hmotnost, řádek léku, detail dávky
 - `assets/source/` – SVG předlohy ikon
 
