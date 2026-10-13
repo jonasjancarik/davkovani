@@ -78,3 +78,20 @@ test('čas podání slovy', () => {
   assert.equal(formatClock(T0 + 18 * HOUR, T0, true), 'zítra v\u00a02:00');
   assert.equal(formatClock(T0 - 10 * HOUR, T0), 'včera 22:00');
 });
+
+test('odstup a denní maximum se řídí naposledy podaným lékem', () => {
+  // ibuprofen podle letáku: nejdříve po 6 hodinách, nejvýše 4× denně
+  const leaflet = (h: number): DiaryEntry => ({ ...entry('ibu', h), hours: 6, maxPerDay: 4 });
+  assert.equal(nextDoseTime([leaflet(0)], ingredients.ibu), T0 + 6 * HOUR);
+  assert.equal(
+    nextDoseTime([0, 6, 12].map(leaflet), ingredients.ibu),
+    T0 + 18 * HOUR,
+  );
+  assert.equal(
+    nextDoseTime([0, 6, 12, 18].map(leaflet), ingredients.ibu),
+    T0 + 24 * HOUR,
+  );
+  // čípek s denním maximem 3: čtvrtá dávka až 24 hodin po první
+  const three = (h: number): DiaryEntry => ({ ...entry('ibu', h), hours: 6, maxPerDay: 3 });
+  assert.equal(nextDoseTime([0, 6, 12].map(three), ingredients.ibu), T0 + 24 * HOUR);
+});

@@ -11,6 +11,14 @@ export type DiaryEntry = {
   amount: string;
   mg: number;
   weight: number;
+  /** Dítě, kterému dávka patří; chybí u záznamů bez uloženého dítěte. */
+  childId?: string;
+  /**
+   * Odstup a denní maximum, které pro podaný lék platily (liší se podle
+   * letáku). U starších záznamů chybí a použijí se hodnoty účinné látky.
+   */
+  hours?: number;
+  maxPerDay?: number;
 };
 
 const HOUR = 60 * 60 * 1000;
@@ -24,7 +32,8 @@ export const KEEP_DAYS = 7;
 /**
  * Nejbližší čas, kdy lze látku znovu podat. Hlídá odstup od poslední dávky
  * stejné látky, denní maximum (v posledních 24 hodinách) a 4 hodiny od
- * poslední dávky jiné látky. Čas v minulosti znamená, že lze podat hned.
+ * poslední dávky jiné látky. Odstup a maximum se řídí naposledy podaným
+ * lékem. Čas v minulosti znamená, že lze podat hned.
  */
 export function nextDoseTime(entries: DiaryEntry[], ingredient: Ingredient): number {
   const newestFirst = [...entries].sort((a, b) => b.time - a.time);
@@ -33,10 +42,12 @@ export function nextDoseTime(entries: DiaryEntry[], ingredient: Ingredient): num
 
   let earliest = 0;
   if (same.length > 0) {
-    earliest = Math.max(earliest, same[0].time + ingredient.hoursBetweenDoses * HOUR);
-  }
-  if (same.length >= ingredient.maxPerDay) {
-    earliest = Math.max(earliest, same[ingredient.maxPerDay - 1].time + DAY);
+    const hours = same[0].hours ?? ingredient.hoursBetweenDoses;
+    const maxPerDay = same[0].maxPerDay ?? ingredient.maxPerDay;
+    earliest = Math.max(earliest, same[0].time + hours * HOUR);
+    if (same.length >= maxPerDay) {
+      earliest = Math.max(earliest, same[maxPerDay - 1].time + DAY);
+    }
   }
   if (other.length > 0) {
     earliest = Math.max(earliest, other[0].time + HOURS_BEFORE_OTHER_INGREDIENT * HOUR);
