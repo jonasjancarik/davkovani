@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SOURCE_NAME, type Brand, type Ingredient, type Product } from '../data/medicines';
 import { formatClock, formatRemaining } from '../lib/diary';
-import { formatNumber, intervalText, type Dose } from '../lib/dosage';
+import { formatAmount, formatNumber, type Dose, type DosingMode } from '../lib/dosage';
 import { CONTENT_MAX_WIDTH, type Theme } from '../theme';
 import { PieceVisual } from './PieceVisual';
 import { strengthText } from './ProductRow';
@@ -26,6 +26,7 @@ export type Selection = {
   ingredient: Ingredient;
   dose: Dose;
   weight: number;
+  mode: DosingMode;
 };
 
 type Props = {
@@ -121,12 +122,13 @@ export function DoseDetail({ theme, selection, now, allowedFrom, onLog, onClose 
   );
 }
 
-function summaryText({ product, brand, ingredient, dose, weight }: Selection): string {
+function summaryText({ product, brand, dose, weight, mode }: Selection): string {
   if (dose.status !== 'ok') return '';
-  const amount = `${formatNumber(dose.amount)} ${dose.unit}`;
+  const source =
+    mode === 'leaflet' ? `příbalový leták (SÚKL ${dose.source})` : `doporučení ${SOURCE_NAME}`;
   return (
-    `Dávkování pro ${formatNumber(weight)} kg: ${brand.name} ${product.name} – ${amount}. ` +
-    `${intervalText(ingredient)}. Zdroj: ${SOURCE_NAME}`
+    `Dávkování pro ${formatNumber(weight)} kg: ${brand.name} ${product.name} – ` +
+    `${formatAmount(dose)} ${dose.unit}. ${dose.schedule.text}. Zdroj: ${source}`
   );
 }
 
@@ -153,9 +155,13 @@ function Content({
   onCopy: () => void;
   onClose: () => void;
 }) {
-  const { product, brand, ingredient, dose, weight } = selection;
+  const { product, brand, ingredient, dose, weight, mode } = selection;
   const tint = theme.ingredient[ingredient.id];
-  const idealMg = `${formatNumber(Math.round(dose.idealMg * 10) / 10)}\u00a0mg`;
+  const idealMg =
+    dose.idealMg === undefined
+      ? undefined
+      : `${formatNumber(Math.round(dose.idealMg * 10) / 10)}\u00a0mg`;
+  const leafletSource = dose.source ? `Podle příbalového letáku (SÚKL, dokument ${dose.source}).` : '';
 
   return (
     <>
@@ -187,7 +193,7 @@ function Content({
           <Text style={[styles.caption, { color: tint.color }]}>Jednotlivá dávka</Text>
           <View style={styles.doseLine}>
             <Text style={[styles.doseValue, { color: tint.color }]}>
-              {formatNumber(dose.amount)}
+              {formatAmount(dose)}
             </Text>
             <Text style={[styles.doseUnit, { color: tint.color }]}>{dose.unit}</Text>
           </View>
@@ -206,7 +212,9 @@ function Content({
           <View style={styles.warningTitle}>
             <MaterialCommunityIcons name="alert-outline" size={22} color={theme.warning} />
             <Text style={[styles.warningHeading, { color: theme.warning }]}>
-              Tahle forma se pro {formatNumber(weight)} kg nehodí
+              {mode === 'leaflet'
+                ? `Leták pro ${formatNumber(weight)} kg dávku neuvádí`
+                : `Tahle forma se pro ${formatNumber(weight)} kg nehodí`}
             </Text>
           </View>
           <Text style={[styles.instruction, { color: theme.text }]}>{dose.instruction}</Text>
@@ -214,29 +222,48 @@ function Content({
       )}
 
       <View style={[styles.facts, { borderColor: theme.border }]}>
-        <Fact
-          theme={theme}
-          icon="flask-outline"
-          label={`Účinná látka: ${ingredient.name}`}
-          value={
-            dose.status === 'ok'
-              ? `${formatNumber(dose.actualMg)} mg v této dávce`
-              : `${ingredient.mgPerKg} mg na kilogram`
-          }
-          note={
-            dose.status === 'ok'
-              ? `Výpočet podle hmotnosti vychází na ${idealMg}, dávka pokrývá ${dose.coverage}\u00a0%.`
-              : `Výpočet podle hmotnosti vychází na ${idealMg}.`
-          }
-        />
-        <View style={[styles.divider, { backgroundColor: theme.border }]} />
-        <Fact
-          theme={theme}
-          icon="clock-outline"
-          label="Jak často"
-          value={intervalText(ingredient)}
-        />
-        <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        {dose.status === 'ok' && (
+          <>
+            <Fact
+              theme={theme}
+              icon="flask-outline"
+              label={`Účinná látka: ${ingredient.name}`}
+              value={`${formatAmount({ amount: dose.actualMg, amountMax: dose.actualMgMax })} mg v této dávce`}
+              note={
+                idealMg
+                  ? `Výpočet podle hmotnosti vychází na ${idealMg}, dávka pokrývá ${dose.coverage}\u00a0%.`
+                  : [
+                      leafletSource,
+                      dose.age && `Leták tuto dávku uvádí pro věk ${dose.age}.`,
+                      dose.note,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+              }
+            />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <Fact
+              theme={theme}
+              icon="clock-outline"
+              label="Jak často"
+              value={dose.schedule.text}
+              note={dose.schedule.note}
+            />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          </>
+        )}
+        {dose.status === 'unsuitable' && (idealMg || leafletSource) && (
+          <>
+            <Fact
+              theme={theme}
+              icon="flask-outline"
+              label={`Účinná látka: ${ingredient.name}`}
+              value={idealMg ? `${ingredient.mgPerKg} mg na kilogram` : 'Dávkování podle letáku'}
+              note={idealMg ? `Výpočet podle hmotnosti vychází na ${idealMg}.` : leafletSource}
+            />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+          </>
+        )}
         <Fact
           theme={theme}
           icon="swap-horizontal"

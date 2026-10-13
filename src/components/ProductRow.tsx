@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Ingredient, Product } from '../data/medicines';
-import { formatNumber, type Dose } from '../lib/dosage';
+import { formatAmount, type Dose } from '../lib/dosage';
 import type { Theme } from '../theme';
 
 type Props = {
@@ -56,11 +56,19 @@ export function ProductRow({ theme, product, ingredient, dose, waitUntil, onPres
 
       {dose?.status === 'ok' && (
         <View style={styles.dose}>
-          <Text style={[styles.doseValue, { color: tint.color }]}>{formatNumber(dose.amount)}</Text>
+          <Text
+            style={[
+              styles.doseValue,
+              dose.amountMax !== undefined && styles.doseRange,
+              { color: tint.color },
+            ]}
+          >
+            {formatAmount(dose)}
+          </Text>
           <Text style={[styles.doseUnit, { color: tint.color }]}>{dose.unit}</Text>
         </View>
       )}
-      {dose?.status === 'tooLow' && (
+      {dose?.status === 'unsuitable' && (
         <Text style={[styles.tooLow, { color: theme.warning, backgroundColor: theme.warningSoft }]}>
           Nevhodné
         </Text>
@@ -108,10 +116,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   doseValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     lineHeight: 26,
     fontVariant: ['tabular-nums'],
+  },
+  doseRange: {
+    fontSize: 17,
   },
   doseUnit: {
     fontSize: 12,

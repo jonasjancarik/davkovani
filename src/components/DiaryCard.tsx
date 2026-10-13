@@ -65,10 +65,8 @@ export function DiaryCard({ theme, entries, now, onRemove, onClear }: Props) {
       })}
 
       <Text style={[styles.rules, { color: theme.textMuted }]}>
-        Ibuprofen nejvýše {ingredients.ibu.maxPerDay}× denně po {ingredients.ibu.hoursBetweenDoses}{' '}
-        hodinách, paracetamol {ingredients.par.maxPerDay}× denně po{' '}
-        {ingredients.par.hoursBetweenDoses} hodinách. Lék s druhou látkou nejdříve{' '}
-        {HOURS_BEFORE_OTHER_INGREDIENT} hodiny po předchozí dávce.
+        Počítá se s odstupem a denním maximem naposledy podaného léku. Lék s druhou účinnou látkou
+        lze podat nejdříve {HOURS_BEFORE_OTHER_INGREDIENT} hodiny po předchozí dávce.
       </Text>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />

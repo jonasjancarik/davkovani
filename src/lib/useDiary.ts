@@ -33,9 +33,17 @@ export function useDiary() {
     setEntries((current) => current.filter((e) => e.id !== id));
   }, []);
 
-  const clear = useCallback(() => setEntries([]), []);
+  /** Smaže záznamy jednoho dítěte, nebo záznamy bez dítěte. */
+  const clear = useCallback((childId: string | null) => {
+    setEntries((current) => current.filter((e) => (e.childId ?? null) !== childId));
+  }, []);
 
-  return { entries, add, remove, clear };
+  /** Přiřadí dosud nezařazené záznamy nově uloženému dítěti. */
+  const adopt = useCallback((childId: string) => {
+    setEntries((current) => current.map((e) => (e.childId ? e : { ...e, childId })));
+  }, []);
+
+  return { entries, add, remove, clear, adopt };
 }
 
 /** Aktuální čas, který se sám obnovuje, aby odpočty v deníčku nezastaraly. */

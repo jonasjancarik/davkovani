@@ -15,10 +15,13 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ChildSwitcher } from './src/components/ChildSwitcher';
 import { DiaryCard } from './src/components/DiaryCard';
 import { DoseDetail, type Selection } from './src/components/DoseDetail';
+import { ModeSwitch } from './src/components/ModeSwitch';
 import { ProductRow } from './src/components/ProductRow';
 import { WeightInput } from './src/components/WeightInput';
+import { leaflets } from './src/data/leaflets';
 import {
   brands,
   ingredients,
@@ -28,8 +31,14 @@ import {
   type IngredientId,
 } from './src/data/medicines';
 import { formatClock, nextDoseTime } from './src/lib/diary';
-import { calculateDose, formatNumber, parseWeight } from './src/lib/dosage';
+import {
+  calculateDose,
+  calculateLeafletDose,
+  formatAmount,
+  parseWeight,
+} from './src/lib/dosage';
 import { useDiary, useNow } from './src/lib/useDiary';
+import { useSettings } from './src/lib/useSettings';
 import { CONTENT_MAX_WIDTH, useTheme, type Theme } from './src/theme';
 
 type Filter = 'all' | IngredientId;
@@ -54,15 +63,22 @@ function Calculator() {
   const weightRef = useRef<TextInput>(null);
   const scrollRef = useRef<ScrollView>(null);
   const diary = useDiary();
+  const settings = useSettings();
   const now = useNow();
-  const [weightText, setWeightText] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [selection, setSelection] = useState<Selection | null>(null);
 
-  const weight = parseWeight(weightText);
+  const { mode } = settings;
+  const childId = settings.selected?.id ?? null;
+  const weight = parseWeight(settings.weight);
+  // Každé dítě má svůj deníček; záznamy bez dítěte patří k neuloženému zadání.
+  const entries = useMemo(
+    () => diary.entries.filter((e) => (e.childId ?? null) === childId),
+    [diary.entries, childId],
+  );
   const allowedFrom = {
-    ibu: nextDoseTime(diary.entries, ingredients.ibu),
-    par: nextDoseTime(diary.entries, ingredients.par),
+    ibu: nextDoseTime(entries, ingredients.ibu),
+    par: nextDoseTime(entries, ingredients.par),
   };
 
   const logDose = (time: number) => {
@@ -72,9 +88,12 @@ function Calculator() {
       time,
       ingredient: ingredient.id,
       label: `${brand.name} ${product.name}`,
-      amount: `${formatNumber(dose.amount)} ${dose.unit}`,
+      amount: `${formatAmount(dose)} ${dose.unit}`,
       mg: dose.actualMg,
       weight: selection.weight,
+      childId: childId ?? undefined,
+      hours: dose.schedule.hours,
+      maxPerDay: dose.schedule.maxPerDay,
     });
     setSelection(null);
     scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -103,12 +122,17 @@ function Calculator() {
             .filter((p) => p.brand === brand.id && (filter === 'all' || p.ingredient === filter))
             .map((product) => {
               const ingredient = ingredients[product.ingredient];
-              const dose = weight > 0 ? calculateDose(weight, product, ingredient) : undefined;
+              const dose =
+                weight <= 0
+                  ? undefined
+                  : mode === 'leaflet'
+                    ? calculateLeafletDose(weight, product, leaflets[product.id])
+                    : calculateDose(weight, product, ingredient);
               return { product, ingredient, dose };
             }),
         }))
         .filter((section) => section.items.length > 0),
-    [weight, filter],
+    [weight, filter, mode],
   );
 
   return (
@@ -127,28 +151,50 @@ function Calculator() {
           <Text style={[styles.lead, { color: theme.textMuted }]}>
             Kolik léku na horečku nebo bolest podat dítěti podle jeho hmotnosti.
           </Text>
+          <View style={styles.children}>
+            <ChildSwitcher
+              theme={theme}
+              children={settings.children}
+              selectedId={childId}
+              onSelect={settings.select}
+              onAdd={(name) => {
+                const first = settings.children.length === 0;
+                const child = settings.addChild(name);
+                if (first) diary.adopt(child.id);
+              }}
+              onRename={settings.renameChild}
+              onRemove={(id) => {
+                diary.clear(id);
+                settings.removeChild(id);
+              }}
+            />
+          </View>
         </View>
 
         <View style={[styles.sticky, { backgroundColor: theme.background }]}>
           <View style={styles.column}>
             <WeightInput
               theme={theme}
-              value={weightText}
-              onChange={setWeightText}
+              value={settings.weight}
+              onChange={settings.setWeight}
               inputRef={weightRef}
             />
           </View>
         </View>
 
         <View style={styles.column}>
-          {diary.entries.length > 0 && (
+          <View style={styles.mode}>
+            <ModeSwitch theme={theme} mode={mode} onChange={settings.setMode} />
+          </View>
+
+          {entries.length > 0 && (
             <View style={styles.diary}>
               <DiaryCard
                 theme={theme}
-                entries={diary.entries}
+                entries={entries}
                 now={now}
                 onRemove={diary.remove}
-                onClear={diary.clear}
+                onClear={() => diary.clear(childId)}
               />
             </View>
           )}
@@ -209,7 +255,7 @@ function Calculator() {
                       return;
                     }
                     weightRef.current?.blur();
-                    setSelection({ product, brand, ingredient, dose, weight });
+                    setSelection({ product, brand, ingredient, dose, weight, mode });
                   }}
                 />
               ))}
@@ -236,8 +282,9 @@ function Footer({ theme }: { theme: Theme }) {
   return (
     <View style={[styles.footer, { borderColor: theme.border }]}>
       <Text style={[styles.footerText, { color: theme.textMuted }]}>
-        Výpočet vychází z kalkulačky ordinace {SOURCE_NAME}. Je orientační a nenahrazuje příbalový
-        leták ani radu lékaře.
+        Dávky podle letáku pocházejí z příbalových informací v databázi SÚKL, dávky podle pediatrů
+        z kalkulačky ordinace {SOURCE_NAME}. Výpočet je orientační a nenahrazuje příbalový leták
+        ani radu lékaře.
       </Text>
       <Pressable
         onPress={() => Linking.openURL(SOURCE_URL)}
@@ -275,6 +322,13 @@ const styles = StyleSheet.create({
   sticky: {
     paddingTop: 16,
     paddingBottom: 12,
+  },
+  children: {
+    marginTop: 14,
+    marginHorizontal: -16,
+  },
+  mode: {
+    marginBottom: 16,
   },
   diary: {
     marginBottom: 16,

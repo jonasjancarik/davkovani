@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { RefObject } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatNumber, parseWeight, sanitizeWeightText } from '../lib/dosage';
 import type { Theme } from '../theme';
@@ -13,6 +13,9 @@ type Props = {
 };
 
 const STEP = 0.5;
+
+// Prohlížeč jinak kolem pole kreslí vlastní rámeček; kurzor v poli stačí.
+const webNoOutline = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : null;
 
 export function WeightInput({ theme, value, onChange, inputRef }: Props) {
   const weight = parseWeight(value);
@@ -49,7 +52,11 @@ export function WeightInput({ theme, value, onChange, inputRef }: Props) {
             selectTextOnFocus
             accessibilityLabel="Hmotnost dítěte v kilogramech"
             accessibilityLabelledBy="weight-label"
-            style={[styles.input, { color: theme.primary, width: Math.max(value.length, 1) * 36 }]}
+            style={[
+              styles.input,
+              webNoOutline,
+              { color: theme.primary, width: Math.max(value.length, 1) * 36 },
+            ]}
           />
           <Text style={[styles.unit, { color: theme.textMuted }]}>kg</Text>
         </Pressable>
@@ -116,7 +123,6 @@ const styles = StyleSheet.create({
   },
   input: {
     padding: 0,
-    outlineWidth: 0,
     fontSize: 56,
     fontWeight: '800',
     textAlign: 'center',
