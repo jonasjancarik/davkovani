@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Dávkování léků",
+    "slug": "davkovani",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1F7488",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.jonasjancarik.davkovani"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "lang": "cs",
+      "themeColor": "#1F7488",
+      "backgroundColor": "#F3F6F7"
+    },
+    "description": "Kolik léku na horečku nebo bolest podat dítěti podle jeho hmotnosti.",
+    "plugins": [
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#1F7488"
+        }
+      ]
+    ]
+  }
+}
