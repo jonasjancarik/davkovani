@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Keyboard,
   Linking,
   Platform,
   Pressable,
@@ -60,6 +61,12 @@ function Calculator() {
 
   useEffect(() => {
     if (Platform.OS === 'web') document.documentElement.lang = 'cs';
+  }, []);
+
+  // Po zavření klávesnice tlačítkem zpět by pole jinak zůstalo označené.
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidHide', () => weightRef.current?.blur());
+    return () => subscription.remove();
   }, []);
 
   const sections = useMemo(
